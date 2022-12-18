@@ -1,0 +1,88 @@
+#!/bin/sh
+
+. ./.config
+
+menu()
+{
+	stdout "${projectname}
+
+${description}
+
+${copyright}
+
+
+	\`configure' script instructions
+
+	-h|--help
+	--prefix=PREFIX         installation prefix [${prefixtype}]
+	./configure --prefix=/home/user/workarea
+
+	
+"
+	[ ! -z "$1" ] && exit "$1"
+}
+
+prefix="${prefixtype}"
+
+for i in "$@"
+do	case "$i" in
+		-error)
+			menu
+			fatal "RUN ./configure first!!"
+			;;
+		-h|--help)
+			menu 0
+			;;
+		--prefix=*)
+			prefix=${i#*=}
+			;;
+		--libname=*)
+			libname=${i#*=}
+			;;
+		*)
+			fatal "$i is not a valid option !!"
+			;;
+	esac
+done
+
+usefulmkdir lib
+usefulmkdir include/${libname}
+usefulmkdir tests
+usefulmkdir src
+
+if [ -f include/${libname}/${libname}.h ]
+then    stdout "include/${libname}/${libname}.h already exists"
+else    stdout "include/${libname}/${libname}.h created from stubfile.h"
+        mv .stubheader.h include/${libname}/${libname}.h
+        sed -i "s|OUGHT2MAKE_H|${libname}_H|g" include/${libname}/${libname}.h
+	stdout "#include <${libname}/${libname}.h>" > tests/${libname}.c
+fi
+
+
+if [ -f src/internal.h ]
+then    stdout "src/internal.h already exists"
+else    stdout "src/internal.h created from .internal.h stubfile"
+        mv .internal.h src/internal.h
+        sed -i "s|OUGHT2MAKE|${libname}|g" src/internal.h
+	stdout "#include \"internal.h\"" > src/${libname}.c
+fi
+
+
+
+stdout "Creating a config.mak to be sourced by the makefile"
+stdout "..."
+stdout "prefix = $prefix"
+stdout "libname = $libname"
+stdout "generating lib${libname}.a"
+stdout "..."
+stdout "${projectname} requires a build system but does not detect them"
+stdout "# Automatically generated" > config.mak
+stdout "
+prefix = $prefix
+libname = $libname
+" >> config.mak
+stdout
+stdout "done."
+
+
+
