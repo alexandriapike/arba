@@ -4,11 +4,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-/*	essential standard C library includes, data type declarations
-	and functon prototypes for an aought2make driven project go 
-	here i
-	replace arba_H with yourprojectname_H
-*/
+#include <stddef.h>
+#include <stdint.h>
+typedef struct arba_fixed_point arba_fixed_point;
 
 #ifdef __cplusplus
 }
