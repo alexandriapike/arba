@@ -16,7 +16,10 @@ arba_fixed_point *expand(arba_fixed_point *a, size_t length, size_t radix, int s
 	if (a == NULL) {
 		a = malloc(sizeof(arba_fixed_point));
 		a->total_memory = length;
-		a->digits = calloc(1, sizeof(size_t) * a->total_memory);
+		size_t *bb = a->datum;
+		bb = calloc(1, sizeof(size_t) * a->total_memory + 1);
+		a->datum = bb;
+		a->digits = a->total_memory;
 		return a;
 	} else {
 	/* otherwise let the system's realloc do the dirty work */
@@ -31,7 +34,11 @@ arba_fixed_point *expand(arba_fixed_point *a, size_t length, size_t radix, int s
 	/* utter madness 999 * 999 = 998001 and transcendental parts are
 	 * determined by, and not to exceed the length of their inputs */
 		a->total_memory += length;
-		a = realloc(a, a->total_memory);
+		size_t *cc;
+		cc = a->datum;
+		cc = realloc(cc, sizeof(size_t) * a->total_memory);
+		a->datum =cc;
+		a->digits = a->total_memory;
 	}
 	/* we assume the caller may be setting the radix or sign */
 	//a->radix = radix;
@@ -63,18 +70,72 @@ arba_fixed_point *arba_string_to_number(arba_fixed_point *f, char *s)
 	size_t i = 0;
 	for (i = 0; s[i] != 0; ++i)
 	{
-		if (s[i] == ".") {
+		if (s[i] == '.') {
 			f = expand(f, i, 0, 0);
 			f->radix = i;
 		}
-		else if (s[i] == "+") {
-			f = expand(f, i, 0, 0);
-			f->sign = 1;
-		} else if (s[i] == "-") {
+		else if (s[i] == '+') {
 			f = expand(f, i, 0, 0);
 			f->sign = 0;
+		} else if (s[i] == '-') {
+			f = expand(f, i, 0, 0);
+			f->sign = 1;
 		}
-		f->digits = arba_ascii_to_base(s[i]);
+		f = expand(f, i, 0, 0);
+
+		f->datum[i] = arba_ascii_to_base(s[i]);
+		//f->digits += 1;
 	}
 	return f;
 }
+
+int arba_pbase(int a)
+{
+
+	static int base[36] = { '0', '1', '2', 
+				'3', '4', '5', 
+				'6', '7', '8',
+				'9', 'A', 'B', 
+				'C', 'D', 'E', 
+				'F', 'G', 'H',
+				'I', 'J', 'K', 
+				'L', 'M', 'N', 
+				'O', 'P', 'Q',
+				'R', 'S', 'T', 
+				'U', 'V', 'W', 
+				'X', 'Y', 'Z' };
+	if (a < 36) 
+		return base[a]; 
+	else 
+		return a;
+}
+/* use fputc to abstract away any write() buffering needs */
+void arba_print(FILE *fp, arba_fixed_point *a)
+{
+	size_t i = 0;
+	size_t k = a->sign;
+
+	for (; i < a->digits ; ++i, ++k) {
+		if (k != 0 && k % 68 == 0) {
+			fputc('\\', fp);
+			fputc('\n', fp);
+		}
+		if (a->radix == i) {
+			fputc('.', fp);
+			if ((++k) % 68 == 0) {
+				fputc('\\', fp);
+				fputc('\n', fp);
+			}
+		}
+		fputc(arba_pbase((a->datum[i])), fp);
+	}
+
+	if (!a->digits) {
+		fputc('0', fp);
+	}
+
+	fputc('\n', fp);
+
+	fflush(fp);
+}
+
