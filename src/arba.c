@@ -2,12 +2,13 @@
 
 arba_fixed_point *add(arba_fixed_point *a, arba_fixed_point *b, arba_fixed_point *c)
 {
-
+	(void) a;
+	(void) b;
+	(void) c;
 	return c;
 }
 
-arba_fixed_point *expand(arba_fixed_point *a, size_t length, size_t radix, int sign)
-	
+arba_fixed_point *expand(arba_fixed_point *a, size_t length)
 {
 	/* if a == NULL then this is a new bignum */
 	/* so we may as well take the caller's size request */
@@ -15,24 +16,15 @@ arba_fixed_point *expand(arba_fixed_point *a, size_t length, size_t radix, int s
 	
 	if (a == NULL) {
 		a = malloc(sizeof(arba_fixed_point));
-		a->total_memory = length + 1;
-		a->datum = calloc(1, sizeof(size_t) * a->total_memory);
+		a->total_memory = length;
+		a->datum = calloc(1, sizeof(size_t) * a->total_memory + 1);
 		a->digits = a->total_memory;
+		a->radix = (sizeof(size_t));
+		a->sign = 0;
 		return a;
 	} else {
-	/* otherwise let the system's realloc do the dirty work */
-	/* we MUST assume an intelligent libc memory reallocation scheme */
-	/* or we will divest into primitive memory management -- buffering
-	 * calls to mmap et al. is the job of malloc et al. 
-	 * just as buffering calls to read et al. is the job of fread et al.
-	 * we hereby establish arba as a bignum system that derives micro-opt-
-	 * imization from the libc and compiler and emperical optimization
-	 * from mathematics algorithms */
-	/* furthermore, to assume a memory request should be +1 is */
-	/* utter madness 999 * 999 = 998001 and transcendental parts are
-	 * determined by, and not to exceed the length of their inputs */
-		a->total_memory = length + 1;
-		a->datum = realloc(a->datum, sizeof(size_t) * a->total_memory);
+		a->total_memory = length;
+		a->datum = realloc(a->datum, sizeof(size_t) * a->total_memory + 1);
 		a->digits = a->total_memory;
 	}
 	return a;
@@ -60,22 +52,21 @@ int arba_ascii_to_base(int letter)
 arba_fixed_point *arba_string_to_number(arba_fixed_point *f, char *s)
 {
 	size_t i = 0;
-	for (i =0 ; s[i] != 0; ++i)
+	f = expand(f,0); // zeroth place is still a 1 size datum
+	for (i = 0;s[i] != 0; ++i)
 	{
+		
 		if (s[i] == '.') {
-			f = expand(f, i, 0, 0);
 			f->radix = i;
-		}
-		else if (s[i] == '+') {
-			f = expand(f, i, 0, 0);
+		} else if (s[i] == '+') {
 			f->sign = 0;
 		} else if (s[i] == '-') {
-			f = expand(f, i, 0, 0);
 			f->sign = 1;
-		}
-		f = expand(f, i, 0, 0);
-		f->datum[i] = arba_ascii_to_base(s[i]);
+		} else {
+			f = expand(f, i + 1); // zeroth place is still a 1 size datum
+			f->datum[i] = arba_ascii_to_base(s[i]); }
 	}
+
 	return f;
 }
 
@@ -117,7 +108,7 @@ void arba_print(FILE *fp, arba_fixed_point *a)
 				fputc('\n', fp);
 			}
 		}
-		fputc(arba_pbase((a->datum[i])), fp);
+		fputc(arba_pbase(a->datum[i]), fp);
 	}
 
 	if (!a->digits) {
