@@ -8,6 +8,7 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 typedef struct arba_fixed_point arba_fixed_point;
+void arba_free(arba_fixed_point *);
 arba_fixed_point *add(arba_fixed_point *, arba_fixed_point *, arba_fixed_point *);
 arba_fixed_point *expand(arba_fixed_point *, size_t);
 int arba_ascii_to_base(int);

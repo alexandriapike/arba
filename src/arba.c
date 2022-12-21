@@ -18,18 +18,29 @@ arba_fixed_point *expand(arba_fixed_point *a, size_t length)
 		a = malloc(sizeof(arba_fixed_point));
 		a->total_memory = length;
 		a->datum = calloc(1, sizeof(size_t) * a->total_memory + 1);
-		//a->digits = a->total_memory;
 		a->radix = (sizeof(size_t));
-		a->sign = 0;
+		a->sign = (sizeof(size_t));
+		// let the caller count digits;
+		a->digits = 0;
 		return a;
 	} else {
 		a->total_memory = length;
 		a->datum = realloc(a->datum, sizeof(size_t) * a->total_memory + 1);
-		//a->digits = a->total_memory;
 	}
 	return a;
 	
 }
+
+void arba_free(arba_fixed_point *a)
+{
+	a->radix = 0;
+	a->sign = 0;
+	a->digits = 0;
+	a->total_memory = 0;
+	free(a->datum);
+	free(a);
+}
+
 int arba_ascii_to_base(int letter)
 {
         int glyphs[110] = {
@@ -52,13 +63,11 @@ int arba_ascii_to_base(int letter)
 arba_fixed_point *arba_string_to_number(arba_fixed_point *f, char *s)
 {
 	size_t i = 0;
-	f = expand(f,0); // zeroth place is still a 1 size datum
-	f->digits = 0;
-	f->sign = (sizeof(size_t));
 	size_t k = 0;
+	f = expand(f,0); // zeroth place is still a 1 size datum
+	
 	for (i = 0;s[i] != 0; ++i)
 	{
-		
 		if (s[i] == '.') {
 			f->radix = k;
 		} else if (s[i] == '+') {
@@ -72,30 +81,24 @@ arba_fixed_point *arba_string_to_number(arba_fixed_point *f, char *s)
 			k++;
 	       	}
 	}
-
 	return f;
 }
 
 int arba_pbase(int a)
 {
+	static int base[36] = { '\060', '\061', '\062', '\063', '\064', '\065',
+	       			'\066', '\067', '\070', '\071', '\101', '\102', 
+				'\103', '\104', '\105', '\106', '\107', '\110',
+			       	'\111', '\112', '\113', '\114', '\115', '\116',
+			       	'\117', '\120', '\121', '\122', '\123', '\124',
+			       	'\125', '\126', '\127', '\130', '\131', '\132' };
 
-	static int base[36] = { '0', '1', '2', 
-				'3', '4', '5', 
-				'6', '7', '8',
-				'9', 'A', 'B', 
-				'C', 'D', 'E', 
-				'F', 'G', 'H',
-				'I', 'J', 'K', 
-				'L', 'M', 'N', 
-				'O', 'P', 'Q',
-				'R', 'S', 'T', 
-				'U', 'V', 'W', 
-				'X', 'Y', 'Z' };
 	if (a < 36) 
 		return base[a]; 
 	else 
 		return a;
 }
+
 /* use fputc to abstract away any write() buffering needs */
 void arba_print(FILE *fp, arba_fixed_point *a)
 {
@@ -104,7 +107,6 @@ void arba_print(FILE *fp, arba_fixed_point *a)
 
 	if (k == 1)
 		fputc('-', fp);
-
 	if (k == 0)
 		fputc('+', fp);
 	for (; i < a->digits ; ++i, ++k) {
@@ -130,4 +132,7 @@ void arba_print(FILE *fp, arba_fixed_point *a)
 
 	fflush(fp);
 }
+
+
+
 
