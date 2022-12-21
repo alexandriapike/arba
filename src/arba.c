@@ -13,7 +13,6 @@ arba_fixed_point *expand(arba_fixed_point *a, size_t length)
 	/* if a == NULL then this is a new bignum */
 	/* so we may as well take the caller's size request */
 	/* and get out of here */
-	
 	if (a == NULL) {
 		a = malloc(sizeof(arba_fixed_point));
 		a->total_memory = length;
@@ -43,7 +42,7 @@ void arba_free(arba_fixed_point *a)
 
 int arba_ascii_to_base(int letter)
 {
-        int glyphs[110] = {
+        int octals[110] = {
         '\000', '\000', '\000', '\000', '\000', '\000', '\000', '\000', '\000',
         '\000', '\000', '\000', '\000', '\000', '\000', '\000', '\000', '\000',
         '\000', '\000', '\000', '\000', '\000', '\000', '\000', '\000', '\000',
@@ -54,9 +53,10 @@ int arba_ascii_to_base(int letter)
         '\000', '\000', '\012', '\013', '\014', '\015', '\016', '\017', '\020',
         '\021', '\022', '\023', '\024', '\025', '\026', '\027', '\030', '\031',
         '\032', '\033', '\034', '\035', '\036', '\037', '\040', '\041', '\042',
-        '\043', '\044', '\045', '\046', '\047', '\050', '\051', '\052', '\053' };
+        '\043', '\044', '\045', '\046', '\047', '\050', '\051', '\052', '\053' 
+	};
         if (letter < 110)
-                return glyphs[letter];
+                return octals[letter];
         return 0;
 }
 
@@ -86,7 +86,7 @@ arba_fixed_point *arba_string_to_number(arba_fixed_point *f, char *s)
 
 int arba_pbase(int a)
 {
-	static int base[36] = { '\060', '\061', '\062', '\063', '\064', '\065',
+	static int octl[36] = { '\060', '\061', '\062', '\063', '\064', '\065',
 	       			'\066', '\067', '\070', '\071', '\101', '\102', 
 				'\103', '\104', '\105', '\106', '\107', '\110',
 			       	'\111', '\112', '\113', '\114', '\115', '\116',
@@ -94,10 +94,11 @@ int arba_pbase(int a)
 			       	'\125', '\126', '\127', '\130', '\131', '\132' };
 
 	if (a < 36) 
-		return base[a]; 
+		return octl[a]; 
 	else 
 		return a;
 }
+
 
 /* use fputc to abstract away any write() buffering needs */
 void arba_print(FILE *fp, arba_fixed_point *a)
