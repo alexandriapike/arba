@@ -1,10 +1,31 @@
 #include "internal.h"
 
-arba_fixed_point *add(arba_fixed_point *a, arba_fixed_point *b, arba_fixed_point *c)
+void arba_setbase(size_t a)
 {
-	(void) a;
-	(void) b;
-	(void) c;
+	_sbase = a;
+}
+
+arba_fixed_point *multiply(arba_fixed_point *a, arba_fixed_point *b, arba_fixed_point *c)
+{
+        size_t prod = 0;
+        size_t carry = 0;
+        size_t i = 0;
+        size_t j = 0;
+        size_t k = 0;
+
+	c = expand(c, a->digits+b->digits);
+        c->datum[a->digits+b->digits-1] = c->datum[0] = 0;
+	c->radix = a->radix + b->radix;
+        
+        for (i = a->digits; i > 0 ; i--){
+                for (j = b->digits, k = i + b->digits, carry = 0; j > 0 ; j--, k--){
+                        prod = a->datum[i-1] * b->datum[j-1] + c->datum[k-1] + carry;
+                        carry = prod / _sbase;
+                        c->datum[k-1] = prod % _sbase;
+                }
+                c->datum[k-1] = carry;
+        }
+	c->digits = a->digits + b->digits;
 	return c;
 }
 
@@ -26,8 +47,7 @@ arba_fixed_point *expand(arba_fixed_point *a, size_t length)
 		a->total_memory = length;
 		a->datum = realloc(a->datum, sizeof(size_t) * a->total_memory + 1);
 	}
-	return a;
-	
+	return a; 
 }
 
 void arba_free(arba_fixed_point *a)
