@@ -157,3 +157,289 @@ void arba_print(FILE *fp, arba_fixed_point *a)
 
 
 
+#include "internal.h"
+
+/* Copyright 2017-2019 CM Graff */
+
+
+/*
+	While many subtraction routines require that the numbers first
+	be compared and then rearranged in the case that the zero threshold
+	is crossed, we mitigate this by using a special property of
+	subtraction that takes advantage of a left over carry. When a
+	left over carry is detected, the inverse of the solution is used.
+	Ergo, if the solution was 999 we would perform the operation:
+
+		answer = 1000 - 999
+
+	Instead of performing this operation in its entirety however, the
+	inverse solution is calculated alongside the normative one and
+	simply discarded in the case it is not needed (when there is no left
+	over carry).
+
+	Addition:
+
+		six_loop_add:
+			
+			This addition function aims to be fully optimized
+			in regards to the number of conditional decisions
+			per loop.
+
+		arb_add_inter:
+
+			arb_add_inter makes use of the _pl function in
+			order to express addition as consisely as possible.
+			This function has the drawback of fitting many
+			conditionals into the same looping code block --
+			some of which may or may not be optimized by the
+			compiler
+	Subtraction:
+
+		arb_sub_inter:
+
+			See arb_add_inter for details about arb_sub_inter
+			as they are nearly identical functions.
+
+		five_loop_sub:
+
+			Work in progress 
+
+			Correct output
+
+			Note that most implementations are using compare()
+		       	beforehand for subtractions
+
+*/
+
+fxdpnt *five_loop_sub(const fxdpnt *a, const fxdpnt *b, fxdpnt *c, int base)
+{
+	size_t i = 0;
+	size_t k = 0;	
+	size_t j = 0;
+	size_t len = 0;
+	ARBT sum = 0;
+	int8_t borrow = 0;
+	int8_t mborrow = -1; /* mirror borrow must be -1 */
+	ARBT mir = 0;
+	UARBT *array = NULL;
+	UARBT *tmp = NULL;
+	ARBT hold = 0;
+	
+	size_t array_allocated = (MAX(rr(a), rr(b)) + MAX(rl(a), rl(b)) + 1);
+
+	array = arb_malloc(array_allocated * sizeof(UARBT));
+	j = MAX(rr(a), rr(b)) + MAX(rl(a), rl(b)) -1;
+
+	size_t y = b->len-1;
+	size_t z = a->len-1;
+
+	/* take care of differing tails to the right of the radix */
+	if (rr(a) > rr(b)) {
+		len = rr(a) - rr(b);
+		for (i=0;i < len; i++, j--, z--, c->len++) {
+			hold = a->number[z];
+			sum = hold + borrow;
+			mir = hold + mborrow;
+			borrow = mborrow = 0;
+			if(sum < 0) {
+				borrow = -1;
+				sum += base;
+			}
+			if(mir < 0) {
+				mborrow = -1;
+				mir += base;
+			}
+			c->number[j] = sum;
+			array[j] = (base-1) - mir;
+		}
+	}
+	/* perform subtraction from 0 on the bottom long tail */
+	else if (rr(b) > rr(a)) {
+		len = rr(b) - rr(a);
+		for (k=0;k < len; k++, j--, y--, c->len++) {
+			hold = 0 - b->number[y];
+			sum = hold + borrow;
+			mir = hold + mborrow;
+			borrow = mborrow = 0;
+			if(sum < 0) {
+				borrow = -1;
+				sum += base;
+			}
+			if(mir < 0) {
+				mborrow = -1;
+				mir += base;
+			}
+			c->number[j] = sum;
+			array[j] = (base-1) - mir;
+		}
+	}
+
+	for (;i < a->len && k < b->len; j--, c->len++, i++, k++, z--, y--) { 
+		hold = a->number[z] - b->number[y]; 
+		sum = hold + borrow;
+		mir = hold + mborrow;
+		borrow = mborrow = 0;
+		if(sum < 0) {
+			borrow = -1;
+			sum += base;
+		}
+		if(mir < 0) {
+			mborrow = -1;
+			mir += base;
+		}
+		c->number[j] = sum;
+		array[j] = (base-1) - mir;
+	}
+
+	for (;i < a->len; j--, c->len++, i++, z--) { 
+		hold = a->number[z]; 
+		sum = hold + borrow;
+		mir = hold + mborrow;
+		borrow = mborrow = 0;
+		if(sum < 0) {
+			borrow = -1;
+			sum += base;
+		}
+		if(mir < 0) {
+			mborrow = -1;
+			mir += base;
+		}
+		c->number[j] = sum;
+		array[j] = (base-1) - mir;
+	}
+
+	for (;k < b->len; j--, c->len++, k++, y--) { 
+		hold = 0 - b->number[y];
+		sum = hold + borrow;
+		mir = hold + mborrow;
+		borrow = mborrow = 0;
+		if(sum < 0) {
+			borrow = -1;
+			sum += base;
+		}
+		if(mir < 0) {
+			mborrow = -1;
+			mir += base;
+		}
+		c->number[j] = sum;
+		array[j] = (base-1) - mir;
+	}
+
+	/* a left over borrow indicates that the zero threshold was crossed */
+	if (borrow == -1) {
+		tmp = c->number;
+		c->number = array;
+		c->allocated = array_allocated; // TODO: this should be scaled
+		free(tmp);
+		arb_flipsign(c);
+	}else {
+		free(array);
+	}
+	return c;
+}
+
+size_t _l(arba_fixed_point *a)
+{
+        return a->radix;
+}
+
+size_t _r(arba_fixed_point *a)
+{
+        return a->digits - a->radix;
+}
+
+
+
+fxdpnt *six_loop_add(const fxdpnt *a, const fxdpnt *b, fxdpnt *c, int base)
+{
+	/* This addition function is designed to make a small
+	 * number of conditional decisions per loop. Hence, why
+	 * there are so many loops. Using temporary variables
+	 * doesn't save much space over using additional loops
+	 * (maybe 6 loc?) so we go ahead and use the extra loops.
+	*/
+
+	size_t i = 0;
+	size_t k = 0;
+	//size_t j = MAX(rr(a), rr(b)) + MAX(rl(a), rl(b)) -1;
+	size_t j = 0;
+	size_t len = 0;
+	int sum = 0;
+	int carry = 0;
+	size_t z = a->len -1;
+	size_t y = b->len -1;
+
+	expand(c
+
+	/* take care of differing tails to the right of the radix */
+	if (_r(a) > _r(b)) {
+		len = _r(a) - _r(b);
+		for (i=0;i < len; i++, j--, z--, c->len++) {
+                        c->datum[j] = a->datum[z];
+                }
+	}
+	else if (_r(b) > _r(a)) {
+		len = _r(b) - _r(a);
+		 for (i=0;i < len; i++, j--, z--, c->len++) {
+                        c->datum[j] = a->datum[z];
+                }
+
+	}
+	if (rr(a) > rr(b)) {
+		len = _r
+		for (i=0;i < len; i++, j--, z--, c->len++) {
+			c->number[j] = a->number[z];
+		}
+	}
+	else if (rr(b) > rr(a)) {
+		len = rr(b) - rr(a);
+		for (k=0;k < len; k++, j--, y--, c->len++) {
+			c->number[j] = b->number[y];
+		}
+	}
+
+	/* numbers are now compatible for a straight-forward add */
+	for (;i < a->len && k < b->len; i++, j--, k++, z--, y--, c->len++) {
+		sum = a->number[z] + b->number[y] + carry; 
+		carry = 0;
+		if (sum >= base) {
+			sum -= base;
+			carry = 1;
+		}
+		c->number[j] = sum;
+	}
+
+	/* one number may be longer than the other to the left */
+	for (;i < a->len; i++, j--, z--, c->len++) { 
+		sum = a->number[z] + carry; 
+		carry = 0;
+		if (sum >= base) {
+			sum -= base;
+			carry = 1;
+		}
+		c->number[j] = sum;
+	}
+
+	for (;k < b->len; j--, k++, y--, c->len++) { 
+		sum = b->number[y] + carry; 
+		carry = 0;
+		if (sum >= base) {
+			sum -= base;
+			carry = 1;
+		}
+		c->number[j] = sum;
+	}
+
+	/* handle the final left over carry */
+	if (carry) {
+		for(i = c->len+1;i > 0; i--) {
+			c->number[i] = c->number[i-1];
+		}
+		c->number[0] = 1;
+		c->len++;
+		c->lp++;
+	}
+
+	return c;
+}
+
